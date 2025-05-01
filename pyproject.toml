@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "richdisplay"
+version = "0.1.0"
+description = "Context-aware CLI logging and display toolkit using Rich and SQLite."
+authors = [
+  { name="Hendrik Siemens", email="siemenshendrik1@gmail.com" }
+]
+license = { file = "LICENSE" }
+readme = "README.md"
+requires-python = ">=3.8"
+
+dependencies = [
+  "rich>=13.0"
+]
+
+[project.urls]
+"Homepage" = "https://github.com/SiemensHalske/pydisplay"
+"Bug Tracker" = "https://github.com/SiemensHalske/pydisplay/issues"
+
+[tool.setuptools.packages.find]
+where = ["src"]

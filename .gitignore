@@ -1,0 +1,51 @@
+# Virtuelle Umgebung
+.venv/
+venv/
+
+# Python Bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+
+# SQLite / Log-Dateien
+*.db
+*.sqlite3
+*.log
+logs/
+output/
+
+logs.db
+
+# OS-spezifisches Zeug
+.DS_Store
+Thumbs.db
+
+# IDEs & Editoren
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Build-Systeme
+dist/
+build/
+*.egg-info/
+.eggs/
+
+# Tests/Debug
+coverage/
+.cache/
+pytest_cache/
+*.cover
+.noseids
+
+# MongoDB dump (falls du das mal ergänzt hast)
+mongodb/
+
+# Exportierte Dateien
+*.csv
+*.json
+
+# Andere
+*.old
+output.pdf
