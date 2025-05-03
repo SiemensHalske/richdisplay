@@ -3,7 +3,7 @@
 A modular, context-aware logging framework for CLI applications written in Python — powered by [Rich](https://github.com/Textualize/rich) for beautiful output, and SQLite for persistent logging.  
 Includes full context stack management, secure state control via tokens, and structured log export features.
 
-![Richdisplay Logo](richdisplay.png "Richdisplay Logo")
+![Richdisplay Logo](assets/img/richdisplay.png "Richdisplay Logo")
 
 ---
 
