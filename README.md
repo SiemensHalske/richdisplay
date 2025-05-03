@@ -33,6 +33,14 @@ src/
 ├── run.py # Entry point
 ```
 
+## 🐍 Dependencies
+
+- `rich` (for beautiful CLI output)
+
+That's it. No SQLAlchemy. No pandas. No click. No nonsense.
+All other functionality — token management, argument parsing, DB logging, exporting — is written in clean, native Python.
+
+
 ## 🚀 Getting Started
 
 ### 1. Create & activate a virtual environment
