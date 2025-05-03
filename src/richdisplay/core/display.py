@@ -5,7 +5,8 @@ Handles displaying information in a structured format using Rich library.
 import logging
 import uuid
 import sys
-from typing import Optional, Union
+from dataclasses import dataclass
+from typing import Optional, Union, List
 from rich.logging import RichHandler
 
 from richdisplay.state import SysContext
@@ -13,6 +14,78 @@ from richdisplay.utils import RichFormatter
 from richdisplay.database import LogDB
 
 from .log_control import LogControl
+
+@dataclass
+class DisplayState:
+    """Represents the state of the display."""
+
+    _valid_entities: List[str] = [
+        "debug",
+        "log_to_db",
+        "log_level",
+        "token",
+        "consumer_id",
+        "log_ctrl",
+    ]
+
+    _debug: bool
+    _log_to_db: bool
+    _log_level: int
+    _token: str
+    _consumer_id: str
+    _log_ctrl: Optional["LogControl"] = None
+
+    def __init__(
+        self,
+        log_level: int = 20,
+        consumer_id: str = "",
+        log_ctrl: Optional["LogControl"] = None,
+    ):
+        self._log_level = log_level
+        self._consumer_id = consumer_id
+        self._log_ctrl = log_ctrl
+
+        if self._log_ctrl is None:
+            self._log_ctrl = LogControl(self._consumer_id)
+            self._log_ctrl.update_log_level(self._log_level)
+        else:
+            self._log_ctrl.update_log_level(self._log_level)
+
+    def _is_parent(self, pid: str) -> bool:
+        """Checks if the current instance is the parent of the given PID."""
+        if self._log_ctrl:
+            try:
+                _ = self._log_ctrl.request_token(pid)
+                return True
+            except (RuntimeError, PermissionError):
+                return False
+        return False
+
+    def set_entity(self, entity: str, value: Union[str, int], pid: str) -> None:
+        """Sets an entity in the DisplayState."""
+        if not self._is_parent(pid):
+            raise PermissionError(
+                f"Permission denied for entity '{entity}' with PID '{pid}'."
+            )
+
+        if entity not in self._valid_entities:
+            raise ValueError(f"Invalid entity '{entity}' to set.")
+
+        entity = "_"+entity.lower()
+        setattr(self, entity, value)
+
+    def request_entity(self, entity: str, pid: str) -> Optional[Union[str, int]]:
+        """Requests an entity from the DisplayState."""
+        if not self._is_parent(pid):
+            raise PermissionError(
+                f"Permission denied for entity '{entity}' with PID '{pid}'."
+            )
+
+        if entity not in self._valid_entities:
+            raise ValueError(f"Invalid entity '{entity}' to request.")
+
+        entity = "_"+entity.lower()
+        return getattr(self, entity)
 
 
 class Display:
@@ -25,17 +98,22 @@ class Display:
     _log_ctrl: Optional["LogControl"] = None
     _consumer_id: str = ""
 
+    _state: Optional[DisplayState] = None
+
     def __init__(self, logger_name: str, log_lvl: Optional[int] = 20):
         """Initializes the Display instance with a specific logger name."""
+        self._consumer_id = uuid.uuid4().hex
+        _log_ctrl = LogControl(self._consumer_id)
+
+        self._state = DisplayState(
+            consumer_id=self._consumer_id, log_ctrl=_log_ctrl, log_level=log_lvl)
         self.logger_name = logger_name
 
-        self._consumer_id = uuid.uuid4().hex
-        self._log_ctrl = LogControl(self._consumer_id)
-
         if log_lvl > 0:
-            self._log_ctrl.update_log_level(log_lvl)
+            _log_ctrl.update_log_level(log_lvl)
         else:
-            print("Uh-oh... Logging at level 0 are we? Brace yourselves, the logs are coming!")
+            print(
+                "Uh-oh... Logging at level 0 are we? Brace yourselves, the logs are coming!")
 
         self._logger = logging.getLogger(logger_name)
         self.init_display()
@@ -49,10 +127,15 @@ class Display:
         """Sets the debug mode for the logger."""
 
         try:
-            SysContext.push(auth_token=self._token)
-            self._debug = SysContext.get_debug()
-            self._log_to_db = SysContext.get_log_to_db()
+            _token = self._state.request_entity("token", self._consumer_id)
+            SysContext.push(auth_token=_token)
+            _debug = SysContext.get_debug()
+            _log_to_db = SysContext.get_log_to_db()
             _log_level = SysContext.get_log_level()
+
+            self._state.set_entity("debug", _debug, self._consumer_id)
+            self._state.set_entity("log_to_db", _log_to_db, self._consumer_id)
+            self._state.set_entity("log_level", _log_level, self._consumer_id)
 
             return _log_level
         except (RuntimeError, PermissionError) as e:
@@ -62,8 +145,11 @@ class Display:
     def _set_token(self) -> None:
         """Sets the token for the logger."""
         try:
-            self._token = self._log_ctrl.request_token(self._consumer_id)
-            if self._token == "":
+            _log_ctrl = self._state.request_entity(
+                "log_ctrl", self._consumer_id)
+            _token = _log_ctrl.request_token(self._consumer_id)
+            self._state.set_entity("token", _token, self._consumer_id)
+            if _token == "":
                 raise RuntimeError("Empty token received.")
         except (RuntimeError, PermissionError) as e:
             print(f"Error: Unable to push system context: {e}")
