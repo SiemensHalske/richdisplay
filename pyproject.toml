@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "richdisplay"
-version = "0.1.0"
+version = "0.2.0"
 description = "Context-aware CLI logging and display toolkit using Rich and SQLite."
 authors = [
   { name="Hendrik Siemens", email="siemenshendrik1@gmail.com" }
