@@ -3,6 +3,7 @@ Handles displaying information in a structured format using Rich library.
 """
 
 import logging
+import uuid
 import sys
 from typing import Optional, Union
 from rich.logging import RichHandler
@@ -21,11 +22,21 @@ class Display:
     _log_to_db: bool = False
     _handler: RichHandler
     _token: str = ""
-    _log_ctrl: Optional["LogControl"] = LogControl()
+    _log_ctrl: Optional["LogControl"] = None
+    _consumer_id: str = ""
 
-    def __init__(self, logger_name: str):
+    def __init__(self, logger_name: str, log_lvl: Optional[int] = 20):
         """Initializes the Display instance with a specific logger name."""
         self.logger_name = logger_name
+
+        self._consumer_id = uuid.uuid4().hex
+        self._log_ctrl = LogControl(self._consumer_id)
+
+        if log_lvl > 0:
+            self._log_ctrl.update_log_level(log_lvl)
+        else:
+            print("Uh-oh... Logging at level 0 are we? Brace yourselves, the logs are coming!")
+
         self._logger = logging.getLogger(logger_name)
         self.init_display()
 
@@ -34,24 +45,38 @@ class Display:
         if LogDB._connection:
             LogDB.close_db()
 
-    def init_display(self):
-        """Initializes the display settings using the new SysContext push API."""
-        # push system context using this instance's token
-
-        self._log_ctrl.bail_out = True
-        self._token = self._log_ctrl.token
-        if self._token == "":
-            print("Error: Unable to generate token for SysContext.")
-            sys.exit(1)
+    def set_debug(self) -> Union[int, None]:
+        """Sets the debug mode for the logger."""
 
         try:
             SysContext.push(auth_token=self._token)
             self._debug = SysContext.get_debug()
             self._log_to_db = SysContext.get_log_to_db()
             _log_level = SysContext.get_log_level()
+
+            return _log_level
         except (RuntimeError, PermissionError) as e:
             print(f"Error: Unable to push system context: {e}")
             sys.exit(1)
+
+    def _set_token(self) -> None:
+        """Sets the token for the logger."""
+        try:
+            self._token = self._log_ctrl.request_token(self._consumer_id)
+            if self._token == "":
+                raise RuntimeError("Empty token received.")
+        except (RuntimeError, PermissionError) as e:
+            print(f"Error: Unable to push system context: {e}")
+            sys.exit(1)
+
+    def init_display(self):
+        """Initializes the display settings using the new SysContext push API."""
+        # push system context using this instance's token
+
+        self._set_token()
+
+        _log_level = self.set_debug()
+
         if self._log_to_db:
             LogDB.init_db()
 
@@ -59,7 +84,7 @@ class Display:
         self._handler = RichHandler(
             show_time=True,  # Show timestamp
             show_level=True,  # Show log level
-            show_path=False,  # Hide file path
+            show_path=True,  # Hide file path
             markup=True,  # Enable Rich markup
         )
 
@@ -74,8 +99,8 @@ class Display:
             self._logger.addHandler(self._handler)
         self._logger.setLevel(_log_level)
         self._logger.propagate = False  # Prevent propagation to root logger
-        self._logger.debug("Display initialized with logger '%s'.", self.logger_name)
-
+        self._logger.debug(
+            "Display initialized with logger '%s'.", self.logger_name)
 
     def _validate_return(self, ret: Optional[Union[int, str]]) -> None:
         """Checks the return value of a database operation."""

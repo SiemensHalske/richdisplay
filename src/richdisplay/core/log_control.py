@@ -5,7 +5,7 @@ LogControl class for managing logging operations.
 import argparse
 import logging
 import sys
-from typing import Optional
+from typing import Optional, Union
 from rich.console import Console
 
 from richdisplay.database import LogDB
@@ -33,16 +33,18 @@ class LogControl:
     _initialized: bool = False  # Flag to check if the class is initialized
     _logdb: LogDB = None  # Instance of the LogDB class
     _token: str = ""
+    _authorized_consumers = []  # List of authorized consumers
 
     def __new__(cls, *args, **kwargs):
         """Ensures that only one instance of the class exists."""
         if cls._instance is None:
-            cls._instance = super(LogControl, cls).__new__(
-                cls, *args, **kwargs)
+            cls._instance = super().__new__(cls)
             cls._instance._console = Console()
             cls._instance._console.print(
                 "LogControl created.", style="bold green")
             cls._instance._initialize()  # Perform initialization during creation
+        if args:
+            cls._instance._authorize(consumer=args[0])  # Authorize the consumer if provided
         return cls._instance
 
     def _initialize(self):
@@ -65,10 +67,6 @@ class LogControl:
             # get the log level from ArgsContext
             log_level = ArgsContext.get().log_level
 
-            if log_level == 10:
-                self._console.print(
-                    f"Log level set to {log_level}.", style="bold blue")
-
             # push new system context instead of contextmanager
             SysContext.push(
                 auth_token=self._token,
@@ -79,9 +77,10 @@ class LogControl:
 
             # execute CLI commands under args context
             self.execute_commands()
-
-    def __init__(self):
+    def __init__(self, consumer: Optional[str] = None):
         """Prevent duplicate initialization."""
+        if consumer:
+            self._authorize(consumer=consumer)
 
     def _exit(self, return_code=0):
         """Exits the program."""
@@ -96,11 +95,22 @@ class LogControl:
     def bail_out(self, value: bool):
         """Sets the bail_out flag."""
         self._bail_out = value
-
-    @property
-    def token(self) -> str:
-        """Returns the token for this instance."""
-        return self._token if self._bail_out else ""
+    
+    def _authorize(self, consumer: str) -> Optional[Union[bool, str]]:
+        """Authorizes the consumer to access the token."""
+        if consumer not in self._authorized_consumers:
+            self._authorized_consumers.append(consumer)
+            return True
+        return False
+    
+    def _is_authorized(self, consumer: str) -> bool:
+        """Checks if the consumer is authorized to access the token."""
+        return consumer in self._authorized_consumers
+    
+    def request_token(self, consumer: str) -> str:
+        if not self._is_authorized(consumer):
+            raise PermissionError(f"{consumer} not allowed to access token.")
+        return self._token
 
     @staticmethod
     def is_initialized() -> bool:
@@ -113,6 +123,19 @@ class LogControl:
         if LogControl._instance is None:
             LogControl._instance = LogControl()
         return LogControl._instance
+
+    def update_log_level(self, log_level: int) -> None:
+        """Updates the log level in the ArgsContext."""
+        ArgsContext.push(
+            auth_token=self._token,
+            log_level=log_level
+        )
+        SysContext.push(
+            auth_token=self._token,
+            debug=True if log_level == logging.DEBUG else False,
+            log_to_db=True,
+            log_level=log_level,
+        )
 
     def parse(self) -> None:
         """Parses CLI arguments and pushes them into ArgsContext."""
